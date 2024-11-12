@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Data Loading
+### All necessary packages and dependencies are at the top of this chunk.
 
 ```{r}
 library(jsonlite)
@@ -20,7 +21,9 @@ library(sp)
 library(dlm)
 library(hms)
 
-dat <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200819132607.geojson')
+# data can be found in Professor Lee's Coursworks for STAT 3105.
+
+dat <- read_json('~/gps/20200819132607.geojson')
 head(dat[['features']], 1)
 ```
 
@@ -112,7 +115,7 @@ d1dlm_filter_mod <- dlmFilter(utm_coords, dlm_spec)
 ```{r}
 plot(d1dlm_filter_mod$y, xlab = "Longitude", ylab = "Latitude")
 ```
-
+## Upload and Plot the Other 10 Files
 ```{r}
 d2 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200818114606.geojson')
 
@@ -530,7 +533,7 @@ utm_coords11 <- utm_coords11[-867, ]
 d11dlm_filter_mod <- dlmFilter(utm_coords11, dlm_spec)
 ```
 
-# Plot all of the days together to observe patterns
+## Plot all of the days together to observe patterns
 
 ```{r}
 plot(d1dlm_filter_mod$y, xlab = "Longitude", ylab = "Latitude", col = 1)
@@ -614,6 +617,8 @@ else if (character_vec == "Tuesday"){
 ```
 
 ## Step Choosing Function
+
+*The algorithm will attempt to plant the bomb 7 minutes into Professor Lee's commute. Since each file collects data at a different rate, it is necessary to choose a different step count depending on which file the algorithm chooses.*
 
 ```{r}
 step_choice <- function (character_vec) {
@@ -770,3 +775,5 @@ abline(a = val_mod3$coefficients[1], b = val_mod3$coefficients[2], col = "red")
 plot(val_mod3$residuals)
 abline(h = 0, col = "red")
 ```
+
+We can see here that the data is not linear or Normal, and sometimes is heteroscedastic as well. This dramatically undermines confidence in the models' predictive powers.
