@@ -693,7 +693,7 @@ new_min <- minutes + 7
 
 predicted_time <- hms(seconds, new_min, hours)
 
-cat("Bomb Longitude (Meters):", predicted_longitude, "     " ,"Bomb Latitude (Meters):", predicted_latitude, "     " ,"Time:")
+cat("Bomb Longitude (Meters):", predicted_longitude, "     " ,"Bomb Latitude (Meters):", predicted_latitude, "     " , "Predicted Weekday:", day_of_week, "     ", "Time:")
 print(predicted_time)
 }
 ```
