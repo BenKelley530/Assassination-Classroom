@@ -1,0 +1,772 @@
+---
+title: "Assassination Classroom"
+author: "Ben Kelley"
+date: "2024-11-05"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Loading
+
+```{r}
+library(jsonlite)
+library(sf)
+library(sp)
+library(dlm)
+library(hms)
+
+dat <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200819132607.geojson')
+head(dat[['features']], 1)
+```
+
+## Data Processing
+
+```{r}
+# I will extract the Latitude, Longitude, Date, and Time from the geojson file and reorganize it into an easily readable data frame
+
+timestamps <- c()
+
+for (i in 1:length(dat$features)){
+  
+  timestamps[i] <- dat$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(dat$features)){
+  
+  longitude[i] <- dat$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(dat$features)){
+  
+  latitude[i] <- dat$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords <- coordinates(utm_df)
+
+# Remove the last row of utm_coords to fix a dimension issue with the filter later on
+utm_coords <- utm_coords[-249, ]
+
+head(utm_coords)
+```
+
+## Filter Construction
+
+### What is the average time between records?
+
+```{r}
+head(data$Timestamp, 20)
+
+# It appears to be about 30 seconds, so dt will be 30
+```
+
+```{r}
+gps_variance <- 20^2
+v_mat <- matrix(c(abs(rnorm(1, 0, gps_variance)), 0, 0, 0,
+                  0, abs(rnorm(1, 0, gps_variance)), 0, 0,
+                  0, 0, abs(rnorm(1, 0, gps_variance)), 0,
+                  0, 0, 0, abs(rnorm(1, 0, gps_variance))), byrow = T, ncol = 4)
+dt <- 30
+g_mat <- matrix(c(1, 0, dt, 0,
+                  0, 1, 0, dt,
+                  0, 0, 1, 0,
+                  0, 0, 0, 1), byrow=TRUE, ncol=4)
+avg_walk_speed_m_per_sec <- 1.4  # https://en.wikipedia.org/wiki/Walking
+dlm_spec <- dlm(
+  FF= matrix(c(1, 0, 0, 0,
+               0, 1, 0, 0,
+               0, 0, 1, 0,
+               0, 0, 0, 1), byrow = T, ncol = 4),
+  GG= g_mat,
+  V = v_mat,
+  W = diag(c(5, 5, 1, 1)^2),
+  m0 = matrix(c(utm_coords[1, ], rep(avg_walk_speed_m_per_sec / dt, 2)),
+              ncol=1), # A vector by R defaults is a k by 1 matrix
+  C0 = diag(rep(10^2, 4)))
+
+d1dlm_filter_mod <- dlmFilter(utm_coords, dlm_spec)
+```
+
+## Plot the Data
+
+```{r}
+plot(d1dlm_filter_mod$y, xlab = "Longitude", ylab = "Latitude")
+```
+
+```{r}
+d2 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200818114606.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d2$features)){
+  
+  timestamps[i] <- d2$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d2$features)){
+  
+  longitude[i] <- d2$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d2$features)){
+  
+  latitude[i] <- d2$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords2 <- coordinates(utm_df)
+
+d2dlm_filter_mod <- dlmFilter(utm_coords2, dlm_spec)
+```
+
+
+```{r}
+d3 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200820151044.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d3$features)){
+  
+  timestamps[i] <- d3$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d3$features)){
+  
+  longitude[i] <- d3$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d3$features)){
+  
+  latitude[i] <- d3$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords3 <- coordinates(utm_df)
+
+d3dlm_filter_mod <- dlmFilter(utm_coords3, dlm_spec)
+```
+
+```{r}
+d4 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200821111447.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d4$features)){
+  
+  timestamps[i] <- d4$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d4$features)){
+  
+  longitude[i] <- d4$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d4$features)){
+  
+  latitude[i] <- d4$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords4 <- coordinates(utm_df)
+utm_coords4 <- utm_coords4[-667, ]
+
+d4dlm_filter_mod <- dlmFilter(utm_coords4, dlm_spec)
+```
+
+```{r}
+d5 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200824130857.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d5$features)){
+  
+  timestamps[i] <- d5$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d5$features)){
+  
+  longitude[i] <- d5$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d5$features)){
+  
+  latitude[i] <- d5$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords5 <- coordinates(utm_df)
+
+d5dlm_filter_mod <- dlmFilter(utm_coords5, dlm_spec)
+```
+
+```{r}
+d6 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200825121346.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d6$features)){
+  
+  timestamps[i] <- d6$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d6$features)){
+  
+  longitude[i] <- d6$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d6$features)){
+  
+  latitude[i] <- d6$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords6 <- coordinates(utm_df)
+utm_coords6 <- utm_coords6[-711, ]
+
+d6dlm_filter_mod <- dlmFilter(utm_coords6, dlm_spec)
+```
+
+```{r}
+d7 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200826131614.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d7$features)){
+  
+  timestamps[i] <- d7$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d7$features)){
+  
+  longitude[i] <- d7$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d7$features)){
+  
+  latitude[i] <- d7$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords7 <- coordinates(utm_df)
+utm_coords7 <- utm_coords7[-865, ]
+
+d7dlm_filter_mod <- dlmFilter(utm_coords7, dlm_spec)
+```
+
+```{r}
+d8 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200827113234.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d8$features)){
+  
+  timestamps[i] <- d8$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d8$features)){
+  
+  longitude[i] <- d8$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d8$features)){
+  
+  latitude[i] <- d8$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords8 <- coordinates(utm_df)
+
+d8dlm_filter_mod <- dlmFilter(utm_coords8, dlm_spec)
+```
+
+```{r}
+d9 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200828122627.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d9$features)){
+  
+  timestamps[i] <- d9$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d9$features)){
+  
+  longitude[i] <- d9$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d9$features)){
+  
+  latitude[i] <- d9$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords9 <- coordinates(utm_df)
+utm_coords9 <- utm_coords9[-267, ]
+
+d9dlm_filter_mod <- dlmFilter(utm_coords9, dlm_spec)
+```
+
+```{r}
+d10 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200828130816.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d10$features)){
+  
+  timestamps[i] <- d10$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d10$features)){
+  
+  longitude[i] <- d10$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d10$features)){
+  
+  latitude[i] <- d10$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords10 <- coordinates(utm_df)
+utm_coords10 <- utm_coords10[-391, ]
+
+d10dlm_filter_mod <- dlmFilter(utm_coords10, dlm_spec)
+```
+
+```{r}
+d11 <- read_json('C:/Users/btkre/OneDrive/Documents/Stat 3105/gps/20200831115147.geojson')
+
+timestamps <- c()
+
+for (i in 1:length(d11$features)){
+  
+  timestamps[i] <- d11$features[[i]]$properties$time
+}
+
+longitude <- c()
+
+latitude <- c()
+
+for (i in 1:length(d11$features)){
+  
+  longitude[i] <- d11$features[[i]]$geometry$coordinates[[1]]
+}
+
+for (i in 1:length(d11$features)){
+  
+  latitude[i] <- d11$features[[i]]$geometry$coordinates[[2]]
+}
+
+
+# Let's convert our latitude and longitude to meters
+
+data <- data.frame(Longitude = longitude, Latitude = latitude, Timestamp = timestamps)
+longlat <- data.frame(Longtiude = longitude, Latitude = latitude)
+timer <- data.frame(Time = timestamps)
+# This following step is similar to transforming time stamps like "2020-01-25" into a time object
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   # This needs to be a data frame
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords11 <- coordinates(utm_df)
+utm_coords11 <- utm_coords11[-867, ]
+
+d11dlm_filter_mod <- dlmFilter(utm_coords11, dlm_spec)
+```
+
+# Plot all of the days together to observe patterns
+
+```{r}
+plot(d1dlm_filter_mod$y, xlab = "Longitude", ylab = "Latitude", col = 1)
+points(d2dlm_filter_mod$y, col = 2)
+points(d3dlm_filter_mod$y, col = 3)
+points(d4dlm_filter_mod$y, col = 4)
+points(d5dlm_filter_mod$y, col = 5)
+points(d6dlm_filter_mod$y, col = 6)
+points(d7dlm_filter_mod$y, col = 7)
+points(d8dlm_filter_mod$y, col = 8)
+points(d9dlm_filter_mod$y, col = 9)
+points(d10dlm_filter_mod$y, col = 10)
+points(d11dlm_filter_mod$y, col = 11)
+```
+
+# Date Predicting Function
+
+*For this function, I've examined the start times of each day of the week and decided that the best way to predict which day of the week the input data will be from is to see which day, from the first week, has the most similar start time. This function makes that prediction.*
+
+```{r}
+
+time_date <- function(second, minute, hour){
+  
+  predicted_day <- c()
+  
+  if (hms(second, minute, hour) <= hms(00, 34, 17)){
+    
+    predicted_day <- "Friday"
+  }
+  
+  else if (hms(second, minute, hour) > hms(00, 34, 17) & hms(second, minute, hour) <= hms(30, 30, 18)){
+    
+    predicted_day <- "Tuesday"
+  }
+  
+  else if (hms(second, minute, hour) > hms(30, 30, 18) & hms(second, minute, hour) <= hms(34, 19, 19)){
+    
+    predicted_day <- "Monday"
+  }
+  
+  else if (hms(second, minute, hour) > hms(34, 19, 19) & hms(second, minute, hour) <= hms(00, 20, 20)){
+    
+    predicted_day <- "Wednesday"
+  }
+  
+    else {
+    
+    predicted_day <- "Thursday"
+    }
+  
+  return(predicted_day)
+}
+```
+## Filter Choosing Function
+
+```{r}
+filter_choice <- function (character_vec) {
+
+  if (character_vec == "Monday") {
+  return(d5dlm_filter_mod)
+}
+else if (character_vec == "Tuesday"){
+  
+  return(d2dlm_filter_mod)
+}
+  else if (character_vec == "Wednesday") {
+    
+    return(d1dlm_filter_mod)
+  }
+  
+  else if (character_vec == "Thursday") {
+    
+    return(d3dlm_filter_mod)
+  }
+  
+  else {
+    
+    return(d4dlm_filter_mod)
+  }
+}
+```
+
+## Step Choosing Function
+
+```{r}
+step_choice <- function (character_vec) {
+
+  if (character_vec == "Monday") {
+    
+  return(57)
+}
+else if (character_vec == "Tuesday"){
+  
+  return(14)
+}
+  else if (character_vec == "Wednesday") {
+    
+    return(18)
+  }
+  
+  else if (character_vec == "Thursday") {
+    
+    return(27)
+  }
+  
+  else {
+    
+    return(34)
+  }
+}
+```
+
+## The Bomb Plan
+
+```{r}
+bomb_location <- function(start_long, start_lat, hours, minutes, seconds) {
+  
+  start_time <- hms( seconds, minutes, hours)
+  
+day_of_week <- time_date(second = seconds, minute = minutes, hour = hours)
+
+pred_filter <- filter_choice(day_of_week)
+
+longlat <- data.frame(Longtiude = start_long, Latitude = start_lat)
+
+timer <- data.frame(Time = start_time)
+
+spat_df <- SpatialPointsDataFrame(coords= longlat,
+                                  data=timer,   
+                                  proj4string=CRS("+proj=lonlat +datum=WGS84"))
+
+# This step converts the longitude/latitude -> UTM
+utm_df <- spTransform(spat_df, CRSobj = "+proj=utm +zone=12 +datum=WGS84")
+utm_coords <- coordinates(utm_df)
+
+coords <- (pred_filter$y)
+
+index <- 1:nrow(coords)
+
+long_mod <- lm(coords[, 1] ~ index)
+
+pred_steps <- step_choice(day_of_week)
+
+long_pred_data <- data.frame(coords = utm_coords[1], index = pred_steps)
+
+predicted_longitude <- predict(long_mod, long_pred_data)
+
+lat_mod <- lm(coords[, 2] ~ index)
+
+lat_pred_data <- data.frame(coords = utm_coords[2], index = pred_steps)
+
+predicted_latitude <- predict(lat_mod, lat_pred_data)
+
+new_min <- minutes + 7
+
+predicted_time <- hms(seconds, new_min, hours)
+
+cat("Bomb Longitude (Meters):", predicted_longitude, "     " ,"Bomb Latitude (Meters):", predicted_latitude, "     " ,"Time:")
+print(predicted_time)
+}
+```
+
+## Test
+
+*I have chosen coordinates and a time similar to one of the days in the first week just to test the algorithm. Any starting data may be entered instead.*
+
+```{r}
+bomb_location(start_long = -114, start_lat = 47, seconds = 55, minutes = 30, hours = 19)
+```
+
+## Additional Information
+### How does temperature affect the speed of walking?
+
+The temperature data was taken from the following source: https://world-weather.info/forecast/usa/new_york/august-2020/
+
+```{r}
+tempmat <- matrix(c(mean(d1dlm_filter_mod$f),
+mean(d2dlm_filter_mod$f),
+mean(d3dlm_filter_mod$f),
+mean(d4dlm_filter_mod$f),
+mean(d5dlm_filter_mod$f),
+mean(d6dlm_filter_mod$f),
+mean(d7dlm_filter_mod$f),
+mean(d8dlm_filter_mod$f),
+mean(d9dlm_filter_mod$f),
+mean(d11dlm_filter_mod$f),
+82,
+73,
+79,
+82,
+88,
+91,
+79,
+90,
+86,
+73), ncol = 2, byrow = F)
+
+tempmod <- lm(tempmat[,1] ~ tempmat[, 2])
+summary(tempmod)
+```
+
+This model gives a positive coefficient to the effect of temperature, meaning that the target walks faster when the temperature is warmer.
+
+## Model Validation
+
+```{r}
+coords <- d3dlm_filter_mod$y
+index <- 1:nrow(d3dlm_filter_mod$y)
+
+val_mod <- lm(coords[, 1] ~ index)
+
+plot(index, coords[, 1], main = "Day 3 Longitude Model")
+abline(a = val_mod$coefficients[1], b = val_mod$coefficients[2], col = "red")
+
+plot(val_mod$residuals)
+abline(h = 0, col = "red")
+
+coords <- d5dlm_filter_mod$y
+index <- 1:nrow(d5dlm_filter_mod$y)
+
+val_mod2 <- lm(coords[, 2] ~ index)
+
+plot(index, coords[, 2], main = "Day 5 Latitude Model")
+abline(a = val_mod2$coefficients[1], b = val_mod2$coefficients[2], col = "red")
+
+plot(val_mod2$residuals)
+abline(h = 0, col = "red")
+
+coords <- d2dlm_filter_mod$y
+index <- 1:nrow(d2dlm_filter_mod$y)
+
+val_mod3 <- lm(coords[, 1] ~ index)
+
+plot(index, coords[, 1], main = "Day 1 Longitude Model")
+abline(a = val_mod3$coefficients[1], b = val_mod3$coefficients[2], col = "red")
+
+plot(val_mod3$residuals)
+abline(h = 0, col = "red")
+```
